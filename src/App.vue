@@ -115,11 +115,10 @@ const handleReset = () => {
           </div>
           
           <div v-if="isThinking" class="flex flex-col items-center justify-center py-8 space-y-3">
-             <div class="relative w-12 h-12">
-               <div class="absolute inset-0 rounded-full border-4 border-gray-600"></div>
-               <div class="absolute inset-0 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin"></div>
-             </div>
-             <p class="text-gray-300 text-sm animate-pulse">Analyzing position...</p>
+             <span class="material-symbols-outlined text-5xl animate-gemini bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-red-400 pb-2 selection:bg-none select-none">
+               magic_button
+             </span>
+             <p class="text-gray-300 text-sm animate-pulse">Gemini đang tính nước cờ...</p>
           </div>
 
           <div v-else class="space-y-4">
@@ -169,5 +168,18 @@ const handleReset = () => {
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background-color: #374151;
   border-radius: 20px;
+}
+
+/* Gemini Shimmer Animation */
+.animate-gemini {
+  background-size: 200% 200%;
+  animation: gradient-move 3s infinite linear;
+  display: inline-block;
+}
+
+@keyframes gradient-move {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 </style>
