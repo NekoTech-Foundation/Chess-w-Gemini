@@ -127,6 +127,17 @@ export function useChessGame() {
         return chess.moves();
     }
 
+    const loadGame = (pgn: string) => {
+        try {
+            chess.loadPgn(pgn);
+            updateState();
+            return true;
+        } catch (e) {
+            console.error("Failed to load PGN", e);
+            return false;
+        }
+    };
+
     return {
         chess, // Expose instance if needed
         fen,
@@ -143,6 +154,7 @@ export function useChessGame() {
         }),
         makeMove,
         resetGame,
+        loadGame,
         getLegalMoves,
         getLegalMovesSAN,
         capturedPieces,
