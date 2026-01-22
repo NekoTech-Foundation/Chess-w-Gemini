@@ -1,0 +1,81 @@
+import { ref, computed } from 'vue';
+import { Chess, type Move } from 'chess.js';
+
+export function useChessGame() {
+    const chess = new Chess();
+
+    // Reactive state
+    const fen = ref(chess.fen());
+    const turn = ref(chess.turn()); // 'w' or 'b'
+    const isGameOver = ref(chess.isGameOver());
+    const isCheckmate = ref(chess.isCheckmate());
+    const isDraw = ref(chess.isDraw());
+
+    // History as simple SAN strings for display
+    const history = ref(chess.history());
+
+    const board = computed(() => {
+        // Depend on FEN to trigger re-render
+        // eslint-disable-next-line no-unused-vars
+        const _ = fen.value;
+        return chess.board();
+    });
+
+    // Helper to force update reactive state
+    const updateState = () => {
+        fen.value = chess.fen();
+        turn.value = chess.turn();
+        isGameOver.value = chess.isGameOver();
+        isCheckmate.value = chess.isCheckmate();
+        isDraw.value = chess.isDraw();
+        history.value = chess.history();
+    };
+
+    const resetGame = () => {
+        chess.reset();
+        updateState();
+    };
+
+    const makeMove = (move: string | { from: string; to: string; promotion?: string }) => {
+        try {
+            const result = chess.move(move);
+            if (result) {
+                updateState();
+                return result;
+            }
+        } catch (e) {
+            // Invalid move
+            return null;
+        }
+        return null;
+    };
+
+    const getLegalMoves = (square?: string) => {
+        return chess.moves({ square, verbose: true });
+    };
+
+    const getLegalMovesSAN = () => {
+        return chess.moves();
+    }
+
+    return {
+        chess, // Expose instance if needed
+        fen,
+        turn,
+        isGameOver,
+        isCheckmate,
+        isDraw,
+        history,
+        board,
+        boardState: computed(() => {
+            // Depend on FEN to trigger re-render
+            // eslint-disable-next-line no-unused-vars
+            const _ = fen.value;
+            return chess.board();
+        }),
+        makeMove,
+        resetGame,
+        getLegalMoves,
+        getLegalMovesSAN,
+    };
+}
