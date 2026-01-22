@@ -30,7 +30,7 @@ const playAI = async () => {
   if (isGameOver.value) return;
 
   const legalMoves = getLegalMovesSAN(); // ["e4", "Nf3"] etc.
-  const bestMoveSan = await getBestMove(fen.value, legalMoves, history.value);
+  const bestMoveSan = await getBestMove(fen.value, legalMoves);
 
   if (bestMoveSan) {
     const result = makeMove(bestMoveSan); // chess.js .move() accepts SAN

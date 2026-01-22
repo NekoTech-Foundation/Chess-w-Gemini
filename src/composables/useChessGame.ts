@@ -49,6 +49,30 @@ export function useChessGame() {
 
     const makeMove = (move: string | { from: string; to: string; promotion?: string }) => {
         try {
+            // Handle UCI string (e.g. "e2e4", "a7a8q") manually since chess.js .move() prefers SAN
+            if (typeof move === 'string' && /^[a-h][1-8][a-h][1-8][qrbn]?$/.test(move)) {
+                const uciObject = {
+                    from: move.substring(0, 2) as any,
+                    to: move.substring(2, 4) as any,
+                    promotion: (move.substring(4) || undefined) as any
+                };
+                // Try moving with object
+                const result = chess.move(uciObject);
+                if (result) {
+                    updateState();
+                    // Play sounds
+                    if (chess.inCheck() || chess.isGameOver()) {
+                        playSound('notify');
+                    } else if (result.captured) {
+                        playSound('capture');
+                    } else {
+                        playSound('move');
+                    }
+                    return result;
+                }
+            }
+
+            // Standard SAN or Object move attempt
             const result = chess.move(move);
             if (result) {
                 updateState();

@@ -27,13 +27,19 @@ const model = genAI.getGenerativeModel({
     ],
 });
 
+import { getOpeningMove } from '../utils/openingBook';
+
 export function useGeminiAI() {
     const isThinking = ref(false);
     const aiThought = ref('');
     const aiTaunt = ref('');
     const error = ref<string | null>(null);
 
-    const getBestMove = async (fen: string, legalMoves: string[], history: string[]) => {
+    // RPM management
+    const lastRequestTime = ref(0);
+    const MIN_REQUEST_INTERVAL = 4000; // 4 seconds minimum between turns
+
+    const getBestMove = async (fen: string, legalMoves: string[] = []) => {
         if (!API_KEY) {
             error.value = "Missing Gemini API Key";
             return null;
@@ -43,23 +49,46 @@ export function useGeminiAI() {
         error.value = null;
         aiThought.value = '';
 
-        // Construct the prompt
+
+        // Check Opening Book first
+        const bookMove = getOpeningMove(fen);
+        if (bookMove) {
+            // Simulate thinking delay for realism
+            await new Promise(r => setTimeout(r, 1000 + Math.random() * 500));
+            aiThought.value = "Khai cuộc bài bản. Tôi đã thuộc lòng biến thể này.";
+            aiTaunt.value = "Bạn nghĩ có thể đánh lừa tôi ở khai cuộc sao?";
+            isThinking.value = false;
+            return bookMove;
+        }
+
+        // Enforce Artificial Delay for RPM
+        const now = Date.now();
+        const timeSinceLastRequest = now - lastRequestTime.value;
+        if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+            const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+            // Don't busy-wait, just set a timeout if this wasn't an async function, 
+            // but here we can just sleep.
+            // Actually, we should sleep *part* of the time here, then call API.
+            await new Promise(r => setTimeout(r, waitTime));
+        }
+        lastRequestTime.value = Date.now();
+
+        // Construct the prompt - STATELESS (No history)
         const prompt = `
-Bạn là một Đại kiện tướng Cờ vua đang chơi quân Đen.
-FEN hiện tại: "${fen}"
-Các nước đi hợp lệ cho quân Đen: ${JSON.stringify(legalMoves)}
-Lịch sử ván đấu: ${JSON.stringify(history.slice(-10))} (10 nước gần nhất)
+You are a Grandmaster chess engine playing Black.
+Current board state (FEN): "${fen}"
+Valid moves: ${JSON.stringify(legalMoves)}
 
-Hãy phân tích vị trí thật sâu sắc. Xác định các mối đe dọa, cơ hội và lợi thế về vị trí.
-Chọn một nước đi tốt nhất duy nhất từ danh sách các nước đi hợp lệ để đánh bại đối thủ (Trắng).
-
-Trả về câu trả lời của bạn nghiêm ngặt theo định dạng JSON sau (không dùng markdown code blocks):
+Analyze the position deeply. Identify threats, hanging pieces, and tactical opportunities.
+Return ONLY a strictly valid JSON object. Do NOT use markdown code blocks.
+Format:
 {
-  "move": "e7e5", 
-  "thought": "Lý do chiến lược ngắn gọn (bằng tiếng Việt)...",
-  "taunt": "Một câu bình luận ngắn, dí dỏm hoặc hơi kiêu ngạo gửi tới đối thủ (bằng tiếng Việt)."
+  "move": "e2e4", 
+  "thought": "Brief strategic reasoning in Vietnamese",
+  "taunt": "A short, witty taunt in Vietnamese"
 }
-    `.trim();
+Key requirement: The 'move' MUST be in UCI format (e.g., e7e5, g8f6) and MUST be one of the valid moves provided.
+`.trim();
 
         // Retry wrapper for API calls
         const makeApiCall = async (fullPrompt: string, retries = 3, delay = 1000): Promise<string> => {
