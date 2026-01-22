@@ -4,11 +4,33 @@ import { getOpeningMove } from '../utils/openingBook';
 import { useGeminiAI } from './useGeminiAI';
 
 // Fallback phrases for Stockfish
+// Fallback phrases for Stockfish
 const FALLBACK_PHRASES = {
-    check: ['Chiếu nè cưng!', 'Chạy đâu cho thoát?', 'Cẩn thận vua kìa!'],
-    capture: ['Ăn nè!', 'Ngon quá, cảm ơn nhé!', 'Đổi quân thôi.'],
-    normal: ['Nước này hay đấy.', 'Để xem bạn đỡ thế nào.', 'Suy nghĩ kỹ chưa?'],
-    switch_mode: ['Mạng lag quá, tôi bật chế độ "nghiêm túc" (Stockfish) đây!', 'Hết quota rồi, giờ tôi sẽ đánh bằng thuật toán nhé!']
+    check: [
+        'Chiếu nè cưng! Chạy đi đâu?',
+        'Vua của bạn đang gặp nguy, lo mà đỡ đi!',
+        'Đừng hòng thoát, chiếu tướng!',
+        'Cẩn thận cái đầu của Vua nhé!'
+    ],
+    capture: [
+        'Ăn nè! Quân này ngon quá.',
+        'Cảm ơn vì món quà nhé!',
+        'Đổi quân lời rồi!',
+        'Sai lầm đắt giá đấy, mình xin con này.'
+    ],
+    normal: [
+        'Nước này bạn tính bao lâu rồi?',
+        'Để xem bạn đỡ nước này thế nào.',
+        'Cờ bí dí tốt à?',
+        'Bạn đánh cũng được đấy, nhưng chưa đủ trình đâu.',
+        'Nước đi thú vị, nhưng mình đã tính trước rồi.',
+        'Cẩn thận đấy, mình đang gài bẫy đó.'
+    ],
+    switch_mode: [
+        'Mạng lag quá, tôi bật "God Mode" (Stockfish) đây!',
+        'Gemini đi nghỉ mát rồi, giờ bạn sẽ đấu với trùm cuối Stockfish!',
+        'Hết quota API rồi, để mình dùng thuật toán "bón hành" cho bạn.'
+    ]
 };
 
 export function useChessAI(game: Chess) {
@@ -60,7 +82,7 @@ export function useChessAI(game: Chess) {
         });
     };
 
-    const getBestMove = async (fen: string, legalMoves: string[]): Promise<{ move: string; comment: string; source: 'book' | 'gemini' | 'stockfish' }> => {
+    const getBestMove = async (fen: string, legalMoves: string[]): Promise<{ move: string; thought: string; taunt: string; source: 'book' | 'gemini' | 'stockfish' }> => {
         aiStatus.value = 'thinking';
 
         try {
@@ -71,7 +93,8 @@ export function useChessAI(game: Chess) {
                 await new Promise(r => setTimeout(r, 800));
                 return {
                     move: bookMove,
-                    comment: 'Khai cuộc bài bản đấy!',
+                    thought: "Opening Book Move",
+                    taunt: "Khai cuộc bài bản đấy!",
                     source: 'book'
                 };
             }
@@ -83,12 +106,12 @@ export function useChessAI(game: Chess) {
                     if (geminiResult) {
                         return {
                             move: geminiResult.move,
-                            comment: geminiResult.taunt || geminiResult.thought || "Hmm...",
+                            thought: geminiResult.thought || "Analyzing...",
+                            taunt: geminiResult.taunt || "...",
                             source: 'gemini'
                         };
                     }
                 } catch (error: any) {
-                    // Check for 429/503 or simple failure
                     console.warn("Gemini Failed, switching to Stockfish...", error);
                     isGeminiDead.value = true;
                     aiComment.value = getRandom(FALLBACK_PHRASES.switch_mode);
@@ -97,10 +120,11 @@ export function useChessAI(game: Chess) {
 
             // 3. Stockfish Fallback
             const sfMove = await callStockfish(fen);
-            const comment = generateLocalCommentary(game, sfMove);
+            const taunt = generateLocalCommentary(game, sfMove);
             return {
                 move: sfMove,
-                comment: isGeminiDead.value ? (aiComment.value || comment) : comment,
+                thought: "Stockfish Engine Calculation (Depth 10)",
+                taunt: isGeminiDead.value ? (taunt + " (Fallback Mode)") : taunt,
                 source: 'stockfish'
             };
 

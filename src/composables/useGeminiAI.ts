@@ -3,31 +3,28 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/ge
 
 // Initialize the API client
 // Note: In a real app, ensure the key is present.
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || '';
-const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({
+// Initialize API Clients for Rotation
+const env = import.meta.env;
+const API_KEYS = [
+    env.VITE_GEMINI_API_KEY,
+    env.VITE_GEMINI_API_KEY_2,
+    env.VITE_GEMINI_API_KEY_3,
+    env.VITE_GEMINI_API_KEY_4,
+    env.VITE_GEMINI_API_KEY_5
+].filter(key => !!key) as string[];
+
+const clients = API_KEYS.map(key => new GoogleGenerativeAI(key));
+const models = clients.map(client => client.getGenerativeModel({
     model: "gemini-3-flash-preview",
     safetySettings: [
-        {
-            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
-        {
-            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-            threshold: HarmBlockThreshold.BLOCK_NONE,
-        },
+        { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
     ],
-});
+}));
 
-
+let currentKeyIndex = 0;
 
 export function useGeminiAI() {
     const isThinking = ref(false);
@@ -37,11 +34,19 @@ export function useGeminiAI() {
 
     // RPM management
     const lastRequestTime = ref(0);
-    const MIN_REQUEST_INTERVAL = 4000; // 4 seconds minimum between turns
+    const MIN_REQUEST_INTERVAL = 4000;
+
+    // Helper to rotate key
+    const rotateKey = () => {
+        if (API_KEYS.length <= 1) return false;
+        currentKeyIndex = (currentKeyIndex + 1) % API_KEYS.length;
+        console.warn(`Switching to API Key #${currentKeyIndex + 1}`);
+        return true;
+    };
 
     const getBestMove = async (fen: string, legalMoves: string[] = []) => {
-        if (!API_KEY) {
-            error.value = "Missing Gemini API Key";
+        if (API_KEYS.length === 0) {
+            error.value = "Missing Gemini API Keys";
             return null;
         }
 
@@ -49,8 +54,7 @@ export function useGeminiAI() {
         error.value = null;
         aiThought.value = '';
 
-
-        // Enforce Artificial Delay for RPM
+        // Enforce Artificial Delay
         const now = Date.now();
         const timeSinceLastRequest = now - lastRequestTime.value;
         if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
@@ -59,7 +63,6 @@ export function useGeminiAI() {
         }
         lastRequestTime.value = Date.now();
 
-        // Construct the prompt - STATELESS (No history)
         const prompt = `
 You are a Grandmaster chess engine playing Black.
 Current board state (FEN): "${fen}"
@@ -76,17 +79,30 @@ Format:
 Key requirement: The 'move' MUST be in UCI format (e.g., e7e5, g8f6) and MUST be one of the valid moves provided.
 `.trim();
 
-        // Retry wrapper for API calls
         const makeApiCall = async (fullPrompt: string, retries = 3, delay = 1000): Promise<string> => {
             try {
-                const result = await model.generateContent(fullPrompt);
+                // Use current model instance
+                const currentModel = models[currentKeyIndex];
+                const result = await currentModel.generateContent(fullPrompt);
                 const response = await result.response;
                 return response.text();
             } catch (err: any) {
-                if (retries > 0 && (err.message.includes('503') || err.message.includes('429'))) {
-                    console.warn(`Gemini API Error (${err.message}). Retrying in ${delay}ms... (${retries} retries left)`);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return makeApiCall(fullPrompt, retries - 1, delay * 2);
+                // If Rate Limited (429) or Server Error (503)
+                if (err.message.includes('503') || err.message.includes('429')) {
+                    console.warn(`Gemini API Error (${err.message}).`);
+
+                    // Try rotating key first
+                    if (rotateKey()) {
+                        console.warn("Retrying with new key immediately...");
+                        return makeApiCall(fullPrompt, retries, delay); // Don't decrement retries for key rotation, or maybe we should? Let's treat rotation as "free" attempt
+                    }
+
+                    // If no keys left or rotation useless, then backoff
+                    if (retries > 0) {
+                        console.warn(`Retrying in ${delay}ms... (${retries} retries left)`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        return makeApiCall(fullPrompt, retries - 1, delay * 2);
+                    }
                 }
                 throw err;
             }
@@ -98,7 +114,12 @@ Key requirement: The 'move' MUST be in UCI format (e.g., e7e5, g8f6) and MUST be
             console.log("Gemini Raw Response:", text);
 
             if (!text || !text.trim()) {
-                throw new Error("Empty response from AI");
+                console.warn("Gemini returned empty text.");
+                const promptFeedback = (await result).promptFeedback;
+                if (promptFeedback) {
+                    console.warn("Safety Feedback:", JSON.stringify(promptFeedback, null, 2));
+                }
+                throw new Error("Empty response from AI (likely safety block or 503)");
             }
 
             // Attempt to clean markdown if present

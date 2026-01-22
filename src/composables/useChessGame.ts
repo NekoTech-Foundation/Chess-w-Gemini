@@ -20,6 +20,11 @@ export function useChessGame() {
         return chess.board();
     });
 
+    // Captured pieces tracking
+    const capturedPieces = ref<{ w: string[], b: string[] }>({ w: [], b: [] });
+    // Sound control
+    const isMuted = ref(false);
+
     // Helper to force update reactive state
     const updateState = () => {
         fen.value = chess.fen();
@@ -28,6 +33,21 @@ export function useChessGame() {
         isCheckmate.value = chess.isCheckmate();
         isDraw.value = chess.isDraw();
         history.value = chess.history();
+
+        // Update captured pieces
+        const historyVerbose = chess.history({ verbose: true });
+        const captured = { w: [] as string[], b: [] as string[] };
+        for (const move of historyVerbose) {
+            if (move.captured) {
+                // If white moved and captured, they captured a black piece
+                if (move.color === 'w') {
+                    captured.w.push(move.captured);
+                } else {
+                    captured.b.push(move.captured);
+                }
+            }
+        }
+        capturedPieces.value = captured;
     };
 
     const resetGame = () => {
@@ -35,8 +55,13 @@ export function useChessGame() {
         updateState();
     };
 
+    const toggleMute = () => {
+        isMuted.value = !isMuted.value;
+    };
+
     // Sound effects
     const playSound = (type: 'move' | 'capture' | 'notify') => {
+        if (isMuted.value) return;
         const audio = new Audio();
         switch (type) {
             case 'move': audio.src = '/move-self.mp3'; break;
@@ -120,5 +145,8 @@ export function useChessGame() {
         resetGame,
         getLegalMoves,
         getLegalMovesSAN,
+        capturedPieces,
+        isMuted,
+        toggleMute
     };
 }
