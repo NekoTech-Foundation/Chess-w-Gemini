@@ -36,11 +36,32 @@ export function useChessGame() {
         updateState();
     };
 
+    // Sound effects
+    const playSound = (type: 'move' | 'capture' | 'notify') => {
+        const audio = new Audio();
+        switch (type) {
+            case 'move': audio.src = '/move-self.mp3'; break;
+            case 'capture': audio.src = '/capture.mp3'; break;
+            case 'notify': audio.src = '/notify.mp3'; break; // Used for check/game over
+        }
+        audio.play().catch(e => console.error("Audio play failed:", e));
+    };
+
     const makeMove = (move: string | { from: string; to: string; promotion?: string }) => {
         try {
             const result = chess.move(move);
             if (result) {
                 updateState();
+
+                // Play sounds
+                if (chess.inCheck() || chess.isGameOver()) {
+                    playSound('notify');
+                } else if (result.captured) {
+                    playSound('capture');
+                } else {
+                    playSound('move');
+                }
+
                 return result;
             }
         } catch (e) {

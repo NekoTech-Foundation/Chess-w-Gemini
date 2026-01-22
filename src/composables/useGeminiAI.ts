@@ -45,19 +45,19 @@ export function useGeminiAI() {
 
         // Construct the prompt
         const prompt = `
-You are a Chess Grandmaster playing Black.
-Current FEN: "${fen}"
-Legal Moves for Black: ${JSON.stringify(legalMoves)}
-Game History: ${JSON.stringify(history.slice(-10))} (Last 10 moves)
+Bạn là một Đại kiện tướng Cờ vua đang chơi quân Đen.
+FEN hiện tại: "${fen}"
+Các nước đi hợp lệ cho quân Đen: ${JSON.stringify(legalMoves)}
+Lịch sử ván đấu: ${JSON.stringify(history.slice(-10))} (10 nước gần nhất)
 
-Analyze the position deeply. Identify threats, opportunities, and positional advantages.
-Select the single best move from the legal moves list to defeat the opponent (White).
+Hãy phân tích vị trí thật sâu sắc. Xác định các mối đe dọa, cơ hội và lợi thế về vị trí.
+Chọn một nước đi tốt nhất duy nhất từ danh sách các nước đi hợp lệ để đánh bại đối thủ (Trắng).
 
-Return your response strictly in the following JSON format (no markdown code blocks):
+Trả về câu trả lời của bạn nghiêm ngặt theo định dạng JSON sau (không dùng markdown code blocks):
 {
   "move": "e7e5", 
-  "thought": "Brief strategic reasoning...",
-  "taunt": "A short, witty, or slightly arrogant comment to the opponent."
+  "thought": "Lý do chiến lược ngắn gọn (bằng tiếng Việt)...",
+  "taunt": "Một câu bình luận ngắn, dí dỏm hoặc hơi kiêu ngạo gửi tới đối thủ (bằng tiếng Việt)."
 }
     `.trim();
 
