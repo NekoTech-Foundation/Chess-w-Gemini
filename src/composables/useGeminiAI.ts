@@ -27,7 +27,7 @@ const model = genAI.getGenerativeModel({
     ],
 });
 
-import { getOpeningMove } from '../utils/openingBook';
+
 
 export function useGeminiAI() {
     const isThinking = ref(false);
@@ -50,25 +50,11 @@ export function useGeminiAI() {
         aiThought.value = '';
 
 
-        // Check Opening Book first
-        const bookMove = getOpeningMove(fen);
-        if (bookMove) {
-            // Simulate thinking delay for realism
-            await new Promise(r => setTimeout(r, 1000 + Math.random() * 500));
-            aiThought.value = "Khai cuộc bài bản. Tôi đã thuộc lòng biến thể này.";
-            aiTaunt.value = "Bạn nghĩ có thể đánh lừa tôi ở khai cuộc sao?";
-            isThinking.value = false;
-            return bookMove;
-        }
-
         // Enforce Artificial Delay for RPM
         const now = Date.now();
         const timeSinceLastRequest = now - lastRequestTime.value;
         if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
             const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
-            // Don't busy-wait, just set a timeout if this wasn't an async function, 
-            // but here we can just sleep.
-            // Actually, we should sleep *part* of the time here, then call API.
             await new Promise(r => setTimeout(r, waitTime));
         }
         lastRequestTime.value = Date.now();
@@ -112,44 +98,36 @@ Key requirement: The 'move' MUST be in UCI format (e.g., e7e5, g8f6) and MUST be
             console.log("Gemini Raw Response:", text);
 
             if (!text || !text.trim()) {
-                console.warn("Gemini returned empty text.");
                 throw new Error("Empty response from AI");
             }
 
             // Attempt to clean markdown if present
-            // Use regex to find the JSON object part
             const jsonMatch = text.match(/\{[\s\S]*\}/);
             let cleanedText = text;
 
             if (jsonMatch) {
                 cleanedText = jsonMatch[0];
             } else {
-                // Fallback cleanup if regex fails
                 cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
             }
 
             const parsed = JSON.parse(cleanedText);
 
+            // Note: We don't set state strings here anymore, just return data
+            // But to keep compatibility if anyone uses these refs directly:
             aiThought.value = parsed.thought;
             aiTaunt.value = parsed.taunt;
 
-            return parsed.move;
+            return {
+                move: parsed.move,
+                thought: parsed.thought,
+                taunt: parsed.taunt
+            };
 
         } catch (err: any) {
             console.error("Gemini AI Error:", err);
-            // More user-friendly error message
-            error.value = "AI failed. " + (err.message.includes('503') ? 'Server overloaded.' : err.message);
-
-            // Fallback: Pick a random move if AI fails?
-            if (legalMoves.length > 0) {
-                // Short delay to simulate "thinking" before fallback
-                await new Promise(r => setTimeout(r, 500));
-
-                const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-                aiThought.value = "I am distracted... I'll just play this.";
-                return randomMove;
-            }
-            return null;
+            // Throw error to let the orchestrator handle fallback (Stockfish)
+            throw new Error(err.message || "Gemini API Failed");
         } finally {
             isThinking.value = false;
         }

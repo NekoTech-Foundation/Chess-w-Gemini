@@ -1,17 +1,18 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref } from 'vue';
 import ChessBoard from './components/ChessBoard.vue';
 import { useChessGame } from './composables/useChessGame';
-import { useGeminiAI } from './composables/useGeminiAI';
+import { useChessAI } from './composables/useChessAI';
 
 const { 
-  board, turn, isGameOver, isCheckmate, isDraw, fen, history, 
+  chess, board, turn, isGameOver, isCheckmate, fen, history, 
   makeMove, resetGame, getLegalMoves, getLegalMovesSAN 
 } = useChessGame();
 
-const { getBestMove, isThinking, aiThought, aiTaunt, error: aiError } = useGeminiAI();
+const { getBestMove, isGeminiDead, aiStatus } = useChessAI(chess);
 
 const lastMove = ref<{ from: string; to: string } | null>(null);
+const aiComment = ref('');
 
 const handleUserMove = async (move: { from: string; to: string }) => {
   if (isGameOver.value || turn.value !== 'w') return;
@@ -30,12 +31,21 @@ const playAI = async () => {
   if (isGameOver.value) return;
 
   const legalMoves = getLegalMovesSAN(); // ["e4", "Nf3"] etc.
-  const bestMoveSan = await getBestMove(fen.value, legalMoves);
+  
+  // AI Feedback before move
+  if (isGeminiDead.value) {
+      aiComment.value = "Stockfish is calculating...";
+  } else {
+      aiComment.value = "Gemini is thinking...";
+  }
 
-  if (bestMoveSan) {
-    const result = makeMove(bestMoveSan); // chess.js .move() accepts SAN
-    if (result) {
-      lastMove.value = { from: result.from, to: result.to };
+  const result = await getBestMove(fen.value, legalMoves);
+
+  if (result) {
+    aiComment.value = result.comment;
+    const moveResult = makeMove(result.move); // chess.js .move() accepts SAN or UCI usually, but we patched makeMove for UCI
+    if (moveResult) {
+      lastMove.value = { from: moveResult.from, to: moveResult.to };
     }
   }
 };
@@ -43,8 +53,9 @@ const playAI = async () => {
 const handleReset = () => {
   resetGame();
   lastMove.value = null;
-  aiThought.value = "";
-  aiTaunt.value = "";
+  aiComment.value = "";
+  // We don't reset isGeminiDead yet, maybe we should? 
+  // For now let's keep it persistent if quota is dead.
 };
 
 </script>
@@ -57,8 +68,10 @@ const handleReset = () => {
         <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-500">
           Chess w/ Gemini
         </h1>
-        <span class="px-3 py-1 rounded-full text-xs font-mono bg-gray-800 text-gray-400 border border-gray-700">
-          Model: Pro
+        <span class="px-3 py-1 rounded-full text-xs font-mono bg-gray-800 text-gray-400 border border-gray-700 flex items-center gap-2">
+           Model: {{ isGeminiDead ? 'Stockfish (Fallback)' : 'Gemini 3 Flash' }}
+           <span v-if="isGeminiDead" class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+           <span v-else class="w-2 h-2 rounded-full bg-emerald-500"></span>
         </span>
       </div>
       
@@ -109,29 +122,26 @@ const handleReset = () => {
           <div class="flex items-center justify-between mb-4">
             <h3 class="text-gray-400 uppercase text-xs font-bold tracking-wider">Opponent</h3>
             <span class="flex items-center gap-2">
-              <div class="w-2 h-2 rounded-full" :class="isThinking ? 'bg-yellow-400 animate-pulse' : 'bg-emerald-400'"></div>
-              <span class="text-sm font-medium text-white">Gemini Pro</span>
+              <div class="w-2 h-2 rounded-full" :class="aiStatus === 'thinking' ? 'bg-yellow-400 animate-pulse' : 'bg-emerald-400'"></div>
+              <span class="text-sm font-medium text-white">{{ isGeminiDead ? 'Stockfish Engine' : 'Gemini AI' }}</span>
             </span>
           </div>
           
-          <div v-if="isThinking" class="flex flex-col items-center justify-center py-8 space-y-3">
+          <div v-if="aiStatus === 'thinking'" class="flex flex-col items-center justify-center py-8 space-y-3">
              <span class="material-symbols-outlined text-5xl animate-gemini bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-red-400 pb-2 selection:bg-none select-none">
                magic_button
              </span>
-             <p class="text-gray-300 text-sm animate-pulse">Gemini đang tính nước cờ...</p>
+             <p class="text-gray-300 text-sm animate-pulse">{{ isGeminiDead ? 'Stockfish is calculating...' : 'Gemini is thinking...' }}</p>
           </div>
 
           <div v-else class="space-y-4">
-            <div v-if="aiTaunt" class="bg-gray-900/50 p-4 rounded-xl border-l-4 border-purple-500">
-               <p class="text-purple-300 italic text-sm">"{{ aiTaunt }}"</p>
-            </div>
-            
-            <div v-if="aiThought" class="bg-gray-900/50 p-4 rounded-xl border-l-4 border-blue-500">
-              <h4 class="text-blue-400 text-xs font-bold mb-1 uppercase">Analysis</h4>
-              <p class="text-gray-300 text-sm leading-relaxed">{{ aiThought }}</p>
-            </div>
+             <div v-if="aiComment" class="bg-gray-900/50 p-4 rounded-xl border-l-4" :class="isGeminiDead ? 'border-orange-500' : 'border-blue-500'">
+                <p class="text-sm leading-relaxed" :class="isGeminiDead ? 'text-orange-200' : 'text-blue-100'">
+                  "{{ aiComment }}"
+                </p>
+             </div>
 
-            <div v-if="!aiThought && !aiTaunt" class="text-center py-8 text-gray-500 text-sm">
+            <div v-if="!aiComment" class="text-center py-8 text-gray-500 text-sm">
                Make your move to start the game.
             </div>
           </div>
@@ -146,10 +156,6 @@ const handleReset = () => {
                  <span :class="idx % 2 === 0 ? 'text-white' : 'text-gray-400'">{{ move }}</span>
               </div>
            </div>
-        </div>
-
-        <div v-if="aiError" class="p-4 bg-red-900/20 border border-red-800 rounded-lg text-red-400 text-sm">
-          {{ aiError }}
         </div>
 
       </div>

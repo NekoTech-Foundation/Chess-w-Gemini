@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue';
-import { Chess, type Move } from 'chess.js';
+import { Chess, type Square } from 'chess.js';
 
 export function useChessGame() {
     const chess = new Chess();
@@ -16,8 +16,7 @@ export function useChessGame() {
 
     const board = computed(() => {
         // Depend on FEN to trigger re-render
-        // eslint-disable-next-line no-unused-vars
-        const _ = fen.value;
+        fen.value;
         return chess.board();
     });
 
@@ -96,7 +95,7 @@ export function useChessGame() {
     };
 
     const getLegalMoves = (square?: string) => {
-        return chess.moves({ square, verbose: true });
+        return chess.moves({ square: square as Square, verbose: true });
     };
 
     const getLegalMovesSAN = () => {
@@ -114,8 +113,7 @@ export function useChessGame() {
         board,
         boardState: computed(() => {
             // Depend on FEN to trigger re-render
-            // eslint-disable-next-line no-unused-vars
-            const _ = fen.value;
+            fen.value;
             return chess.board();
         }),
         makeMove,
