@@ -115,10 +115,7 @@ Key requirement: The 'move' MUST be in UCI format (e.g., e7e5, g8f6) and MUST be
 
             if (!text || !text.trim()) {
                 console.warn("Gemini returned empty text.");
-                const promptFeedback = (await result).promptFeedback;
-                if (promptFeedback) {
-                    console.warn("Safety Feedback:", JSON.stringify(promptFeedback, null, 2));
-                }
+                // Removed invalid PromptFeedback check to fix build (result is not in scope)
                 throw new Error("Empty response from AI (likely safety block or 503)");
             }
 
