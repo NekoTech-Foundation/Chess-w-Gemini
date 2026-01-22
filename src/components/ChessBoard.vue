@@ -6,9 +6,7 @@ const props = defineProps<{
   board: ( { square: string; type: string; color: string } | null )[][]; // chess.js board structure
   turn: string; // 'w' or 'b'
   lastMove: { from: string; to: string } | null;
-  legalMoves: string[]; // List of legal moves (square names or "from-to") ??? 
-  // Actually, chess.js legal moves are strings like "e4", "Nf3". Using them for highlighting "legal destinations" is tricky if we don't parse.
-  // We can pass a function to get legal moves for a square.
+  legalMoves: string[]; 
   getLegalMoves: (square: string) => any[]; 
 }>();
 
@@ -17,7 +15,6 @@ const emit = defineEmits(['move']);
 const selectedSquare = ref<string | null>(null);
 const possibleDestinations = ref<string[]>([]);
 
-// SVG Piece Constants (Standard vectors)
 const getPieceImage = (type: string, color: string) => {
   return `/${color}${type.toUpperCase()}.svg`;
 };
@@ -65,7 +62,6 @@ const handleSquareClick = (square: string) => {
 // Utils for grid
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
 const RANKS = ['8', '7', '6', '5', '4', '3', '2', '1'];
-
 </script>
 
 <template>
